@@ -12,6 +12,8 @@ TITLE_PATTERN = re.compile(r"E10 Status & Processed Wafer Count \[(.*?)\]")
 
 
 def _to_text(value) -> str:
+	"""Return a trimmed string and normalize missing values to empty text."""
+	# Normalize mixed spreadsheet values into stable text for comparisons.
 	if pd.isna(value):
 		return ""
 	return str(value).strip()
@@ -19,6 +21,7 @@ def _to_text(value) -> str:
 
 def extract_condition_map(condition_df: pd.DataFrame) -> dict[str, dict[str, str]]:
 	"""Build equipment metadata map from the Condition sheet."""
+	# Locate the dynamic header row first, then map all rows below it.
 	header_row_idx = None
 	for idx in range(len(condition_df)):
 		row_values = [_to_text(v) for v in condition_df.iloc[idx].tolist()]
@@ -58,6 +61,8 @@ def extract_condition_map(condition_df: pd.DataFrame) -> dict[str, dict[str, str
 
 
 def _find_week_row(df: pd.DataFrame, start_idx: int) -> int | None:
+	"""Find a nearby local week-header row after an equipment title row."""
+	# Search only a small window because week rows are expected right below titles.
 	for idx in range(start_idx + 1, min(start_idx + 6, len(df))):
 		first_value = _to_text(df.iat[idx, 1]) if df.shape[1] > 1 else ""
 		if first_value.startswith("ww"):
@@ -66,6 +71,8 @@ def _find_week_row(df: pd.DataFrame, start_idx: int) -> int | None:
 
 
 def _find_global_week_row(df: pd.DataFrame) -> int | None:
+	"""Find the first global week-header row in the Trend sheet."""
+	# Fallback when some equipment blocks do not repeat local week headers.
 	for idx in range(len(df)):
 		first_value = _to_text(df.iat[idx, 1]) if df.shape[1] > 1 else ""
 		if first_value.startswith("ww"):
@@ -75,6 +82,7 @@ def _find_global_week_row(df: pd.DataFrame) -> int | None:
 
 def extract_trend_rows(trend_df: pd.DataFrame) -> list[dict[str, object]]:
 	"""Extract all metrics rows grouped by equipment title blocks from Trend sheet."""
+	# Parse each equipment block and flatten metrics into row records.
 	rows: list[dict[str, object]] = []
 	row_idx = 0
 	global_week_row_idx = _find_global_week_row(trend_df)
@@ -130,6 +138,8 @@ def extract_trend_rows(trend_df: pd.DataFrame) -> list[dict[str, object]]:
 
 
 def build_summary_from_frames(condition_df: pd.DataFrame, trend_df: pd.DataFrame, sort_active_first: bool = True) -> pd.DataFrame:
+	"""Build the normalized summary table from preloaded Condition and Trend dataframes."""
+	# Join equipment metadata with trend rows, then apply optional active-first ordering.
 
 	condition_map = extract_condition_map(condition_df)
 	trend_rows = extract_trend_rows(trend_df)
@@ -169,12 +179,16 @@ def build_summary_from_frames(condition_df: pd.DataFrame, trend_df: pd.DataFrame
 
 
 def build_summary(input_path: Path, sort_active_first: bool = True) -> pd.DataFrame:
+	"""Read required sheets from an input workbook and build the summary dataframe."""
+	# Keep this wrapper for CLI usage while reusing the dataframe-based core logic.
 	condition_df = pd.read_excel(input_path, sheet_name="Condition", header=None)
 	trend_df = pd.read_excel(input_path, sheet_name="Trend", header=None)
 	return build_summary_from_frames(condition_df, trend_df, sort_active_first=sort_active_first)
 
 
 def _copy_cell_style(src_cell, dst_cell) -> None:
+	"""Copy style properties from one worksheet cell to another."""
+	# Preserve visual format when writing transformed output rows.
 	dst_cell.font = copy(src_cell.font)
 	dst_cell.fill = copy(src_cell.fill)
 	dst_cell.border = copy(src_cell.border)
@@ -184,6 +198,8 @@ def _copy_cell_style(src_cell, dst_cell) -> None:
 
 
 def _get_style_bundle(src_cell, style_cache: dict[int, tuple]) -> tuple:
+	"""Return a cached immutable style bundle keyed by openpyxl style id."""
+	# Reuse copied style objects to reduce repetitive copy overhead.
 	style_id = src_cell.style_id
 	if style_id not in style_cache:
 		style_cache[style_id] = (
@@ -198,6 +214,8 @@ def _get_style_bundle(src_cell, style_cache: dict[int, tuple]) -> tuple:
 
 
 def _apply_style_bundle(dst_cell, style_bundle: tuple) -> None:
+	"""Apply a previously captured style bundle to a destination cell."""
+	# Assign all style parts in one place for consistent output formatting.
 	dst_cell.font = style_bundle[0]
 	dst_cell.fill = style_bundle[1]
 	dst_cell.border = style_bundle[2]
@@ -214,6 +232,8 @@ def _replace_border_sides(
 	top: Side | None = None,
 	bottom: Side | None = None,
 ) -> Border:
+	"""Create a copy of a border while replacing selected sides only."""
+	# Keep all untouched border attributes exactly as they were.
 	return Border(
 		left=left if left is not None else border.left,
 		right=right if right is not None else border.right,
@@ -232,6 +252,8 @@ def _replace_border_sides(
 
 
 def _apply_group_outline(ws, start_row: int, end_row: int, start_col: int = 1, end_col: int = 7) -> None:
+	"""Draw a medium outline border around a contiguous equipment row block."""
+	# Apply top/bottom and left/right edges to form a visible group box.
 	outline_side = Side(style="medium", color="000000")
 
 	for col_idx in range(start_col, end_col + 1):
@@ -250,6 +272,8 @@ def _apply_group_outline(ws, start_row: int, end_row: int, start_col: int = 1, e
 
 
 def write_summary_with_format(input_path: Path, output_path: Path, summary_df: pd.DataFrame) -> None:
+	"""Write the summary workbook with preserved styles and group border outlines."""
+	# Rebuild the Summary sheet from source styles while adding grouping visuals.
 	wb_src = load_workbook(input_path)
 	wb_out = Workbook()
 	try:
@@ -341,6 +365,8 @@ def write_summary_with_format(input_path: Path, output_path: Path, summary_df: p
 
 
 def parse_args() -> argparse.Namespace:
+	"""Parse CLI arguments for input/output path and sort behavior."""
+	# Expose flags for output destination and active-equipment ordering.
 	parser = argparse.ArgumentParser(
 		description="Summarize E10Monitor Excel file into *_processed.xlsx output."
 	)
@@ -367,6 +393,8 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+	"""Run CLI flow: validate input, build summary, write output, print result."""
+	# Keep a simple command-line entrypoint for non-UI batch processing.
 	args = parse_args()
 	input_path = Path(args.input_file)
 

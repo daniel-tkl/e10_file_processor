@@ -1,3 +1,5 @@
+"""Shared typed payloads used across Streamlit web UI layers."""
+
 from dataclasses import dataclass
 
 import pandas as pd
@@ -5,6 +7,7 @@ import pandas as pd
 
 @dataclass
 class ProcessedWorkbook:
+    """Container for processed workbook bytes, preview dataframe, and summary metrics."""
     output_name: str
     output_bytes: bytes
     summary_df: pd.DataFrame

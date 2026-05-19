@@ -1,3 +1,5 @@
+"""UI rendering helpers for the Streamlit E10 web application."""
+
 import streamlit as st
 
 from .config import APP_CAPTION, APP_TITLE, PREVIEW_HEIGHT, XLSX_MIME
@@ -6,25 +8,28 @@ from .types import ProcessedWorkbook
 
 
 def _apply_modern_theme() -> None:
+    """Inject the shared CSS/HTML theme into the current Streamlit page."""
     st.markdown(THEME_MARKUP, unsafe_allow_html=True)
 
 
 def _build_preview_df(result: ProcessedWorkbook):
-        preview_df = result.summary_df.drop(columns=["_source_metric_row", "_source_week_row"], errors="ignore")
+    """Build a compact preview table with up to two distinct equipment entries."""
+    preview_df = result.summary_df.drop(columns=["_source_metric_row", "_source_week_row"], errors="ignore")
 
-        if "TEL S/N" not in preview_df.columns:
-                return preview_df.head(20)
+    if "TEL S/N" not in preview_df.columns:
+        return preview_df.head(20)
 
-        tel_values = preview_df["TEL S/N"].dropna().astype(str).str.strip()
-        tel_values = tel_values[tel_values != ""]
-        selected_tels = tel_values.drop_duplicates().head(2).tolist()
-        if not selected_tels:
-                return preview_df.head(20)
+    tel_values = preview_df["TEL S/N"].dropna().astype(str).str.strip()
+    tel_values = tel_values[tel_values != ""]
+    selected_tels = tel_values.drop_duplicates().head(2).tolist()
+    if not selected_tels:
+        return preview_df.head(20)
 
-        return preview_df[preview_df["TEL S/N"].astype(str).isin(selected_tels)]
+    return preview_df[preview_df["TEL S/N"].astype(str).isin(selected_tels)]
 
 
 def _build_dark_preview_styler(preview_df):
+    """Return a dataframe Styler configured for the app's dark preview colors."""
     return (
         preview_df.style
         .set_table_styles(
@@ -48,6 +53,7 @@ def _build_dark_preview_styler(preview_df):
 
 
 def render_page_header() -> None:
+    """Render the themed hero title and caption section."""
     _apply_modern_theme()
     title_parts = APP_TITLE.split(" ", 1)
     if len(title_parts) == 2:
@@ -67,6 +73,7 @@ def render_page_header() -> None:
 
 
 def render_controls():
+    """Render upload and processing controls and return current user selections."""
     st.markdown('<div class="controls-spacer-lg"></div>', unsafe_allow_html=True)
     st.markdown(
         """
@@ -99,6 +106,7 @@ def render_controls():
 
 
 def render_success(result: ProcessedWorkbook) -> None:
+    """Render completion message and key processing metrics."""
     st.success(f"Done. Rows summarized: {len(result.summary_df)}")
     col1, col2, col3 = st.columns(3)
     col1.metric("Time elapsed", f"{result.elapsed_seconds:.2f} s")
@@ -112,6 +120,7 @@ def render_success(result: ProcessedWorkbook) -> None:
 
 
 def render_preview(result: ProcessedWorkbook) -> None:
+    """Render a styled preview grid for a subset of processed rows."""
     preview_df = _build_preview_df(result)
     preview_styler = _build_dark_preview_styler(preview_df)
     st.markdown('<div class="section-spacer-lg"></div>', unsafe_allow_html=True)
@@ -121,6 +130,7 @@ def render_preview(result: ProcessedWorkbook) -> None:
 
 
 def render_download(result: ProcessedWorkbook) -> None:
+    """Render download and clear-result actions for processed output."""
     st.markdown('<div class="section-spacer-lg"></div>', unsafe_allow_html=True)
     st.subheader("Download")
     st.caption("Choose output file name, then click download. Save location is handled by your browser.")

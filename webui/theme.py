@@ -1,3 +1,5 @@
+"""Theme markup (fonts + CSS) injected by the Streamlit UI layer."""
+
 THEME_MARKUP = """
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
