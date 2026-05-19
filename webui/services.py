@@ -1,3 +1,5 @@
+"""Service layer for validating uploads and producing processed workbooks."""
+
 import tempfile
 import time
 import warnings
@@ -15,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 def _count_unique_non_empty(summary_df, column_name: str) -> int:
+    """Count unique non-empty values in a dataframe column."""
     if column_name not in summary_df.columns:
         return 0
 
@@ -24,6 +27,7 @@ def _count_unique_non_empty(summary_df, column_name: str) -> int:
 
 
 def _load_and_validate_workbook(input_path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Load workbook sheets and validate that the expected E10 structure exists."""
     try:
         workbook = pd.ExcelFile(input_path)
     except Exception as exc:
@@ -62,6 +66,7 @@ def _load_and_validate_workbook(input_path: Path) -> tuple[pd.DataFrame, pd.Data
 
 
 def _to_user_friendly_error(exc: Exception) -> str:
+    """Translate low-level exceptions into user-facing error messages."""
     message = str(exc)
     if isinstance(exc, PermissionError) or "WinError 32" in message:
         return (
@@ -73,6 +78,7 @@ def _to_user_friendly_error(exc: Exception) -> str:
 
 
 def process_excel_upload(file_name: str, file_bytes: bytes, sort_active_first: bool) -> ProcessedWorkbook:
+    """Process one uploaded Excel file and return output bytes plus summary stats."""
     if not file_bytes:
         raise ValueError("The uploaded file is empty. Please upload a valid .xlsx file.")
 

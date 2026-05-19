@@ -1,3 +1,5 @@
+"""Static configuration values and utility helpers for the web UI."""
+
 from pathlib import Path
 
 
@@ -9,6 +11,7 @@ XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
 def load_app_icon() -> str:
+	"""Return favicon path when available, otherwise fallback to the default icon."""
 	icon_path = Path(__file__).resolve().parent.parent / "assets" / "favicon.ico"
 	if icon_path.exists():
 		return str(icon_path)
