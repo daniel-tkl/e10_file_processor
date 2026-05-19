@@ -1,0 +1,6 @@
+.pytest_cache
+.streamlit
+.venv
+
+__pycache__
+data
