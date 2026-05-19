@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 from openpyxl import Workbook, load_workbook
+from openpyxl.styles import Border, Side
 
 
 TITLE_PATTERN = re.compile(r"E10 Status & Processed Wafer Count \[(.*?)\]")
@@ -205,6 +206,49 @@ def _apply_style_bundle(dst_cell, style_bundle: tuple) -> None:
 	dst_cell.protection = style_bundle[5]
 
 
+def _replace_border_sides(
+	border: Border,
+	*,
+	left: Side | None = None,
+	right: Side | None = None,
+	top: Side | None = None,
+	bottom: Side | None = None,
+) -> Border:
+	return Border(
+		left=left if left is not None else border.left,
+		right=right if right is not None else border.right,
+		top=top if top is not None else border.top,
+		bottom=bottom if bottom is not None else border.bottom,
+		diagonal=border.diagonal,
+		diagonal_direction=border.diagonal_direction,
+		vertical=border.vertical,
+		horizontal=border.horizontal,
+		diagonalUp=border.diagonalUp,
+		diagonalDown=border.diagonalDown,
+		outline=border.outline,
+		start=border.start,
+		end=border.end,
+	)
+
+
+def _apply_group_outline(ws, start_row: int, end_row: int, start_col: int = 1, end_col: int = 7) -> None:
+	outline_side = Side(style="medium", color="000000")
+
+	for col_idx in range(start_col, end_col + 1):
+		top_cell = ws.cell(row=start_row, column=col_idx)
+		top_cell.border = _replace_border_sides(top_cell.border, top=outline_side)
+
+		bottom_cell = ws.cell(row=end_row, column=col_idx)
+		bottom_cell.border = _replace_border_sides(bottom_cell.border, bottom=outline_side)
+
+	for row_idx in range(start_row, end_row + 1):
+		left_cell = ws.cell(row=row_idx, column=start_col)
+		left_cell.border = _replace_border_sides(left_cell.border, left=outline_side)
+
+		right_cell = ws.cell(row=row_idx, column=end_col)
+		right_cell.border = _replace_border_sides(right_cell.border, right=outline_side)
+
+
 def write_summary_with_format(input_path: Path, output_path: Path, summary_df: pd.DataFrame) -> None:
 	wb_src = load_workbook(input_path)
 	wb_out = Workbook()
@@ -235,6 +279,8 @@ def write_summary_with_format(input_path: Path, output_path: Path, summary_df: p
 				_apply_style_bundle(cell, _get_style_bundle(header_metric_src, style_cache))
 
 		write_columns = data_columns + ["_source_metric_row"]
+		tel_col_idx = data_columns.index("TEL S/N") + 1
+		group_end_col_idx = len(data_columns)
 		for row_offset, row_values in enumerate(summary_df[write_columns].itertuples(index=False, name=None), start=2):
 			source_metric_row = int(row_values[-1])
 			data_values = row_values[:-1]
@@ -250,6 +296,26 @@ def write_summary_with_format(input_path: Path, output_path: Path, summary_df: p
 					_apply_style_bundle(out_cell, _get_style_bundle(src_cell, style_cache))
 				else:
 					_apply_style_bundle(out_cell, _get_style_bundle(metric_src, style_cache))
+
+		group_start_row = None
+		previous_tel_sn = None
+		for row_idx in range(2, ws_out.max_row + 1):
+			current_tel_sn = str(ws_out.cell(row=row_idx, column=tel_col_idx).value or "").strip()
+			if not current_tel_sn:
+				continue
+
+			if group_start_row is None:
+				group_start_row = row_idx
+				previous_tel_sn = current_tel_sn
+				continue
+
+			if current_tel_sn != previous_tel_sn:
+				_apply_group_outline(ws_out, group_start_row, row_idx - 1, start_col=1, end_col=group_end_col_idx)
+				group_start_row = row_idx
+				previous_tel_sn = current_tel_sn
+
+		if group_start_row is not None:
+			_apply_group_outline(ws_out, group_start_row, ws_out.max_row, start_col=1, end_col=group_end_col_idx)
 
 		column_widths = {
 			"A": 10,
